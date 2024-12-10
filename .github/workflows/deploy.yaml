@@ -173,12 +173,12 @@ jobs:
       - name: Deploy to AKS
         run: |
           cat deployment.yml
-          # kubectl apply -f deployment.yml 
+          kubectl apply -f deployment.yml 
 
 
       - name: Restart Deployment
         shell: pwsh
         run: |
           $app_name = Get-Content -Path appname.txt
-          # kubectl rollout restart deployment/$app_name 
+          kubectl rollout restart deployment/$app_name 
 
