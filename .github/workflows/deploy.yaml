@@ -75,6 +75,7 @@ jobs:
                       - containerPort: 16686  # Jaeger UI port
                       - containerPort: 14268  # Collector port
                       - containerPort: 14250  # gRPC port
+                      - containerPort: 4318   # OTP port
                     env:
                       # Additional Jaeger config can be placed here
                       - name: COLLECTOR_ZIPKIN_HTTP_PORT
@@ -96,6 +97,9 @@ jobs:
               - port: 14250
                 targetPort: 14250
                 name: grpc
+              - port: 4318
+                targetPort: 4318
+                name: otp
             selector:
               app: $app_name
           ---
