@@ -119,7 +119,7 @@ jobs:
                     args:
                       - "--provider=oidc"
                       - "--oidc-issuer-url=https://login.microsoftonline.com/$tenant_id/v2.0"
-                      - "--client-id=${{ vars.APP_ID }}"
+                      - "--client-id=$client_id"
                       - "--client-secret-file=/secrets/client-secret"
                       - "--email-domain=*"
                       - "--cookie-secure=false"
@@ -127,10 +127,10 @@ jobs:
                       - "--upstream=http://$app_name.$namespace.svc.cluster.local:16686"
                       - "--http-address=0.0.0.0:8080"
                       # Optionally, configure redirect URL if different from ingress host
-                      # - "--redirect-url=https://<your-ingress-host>/"
+                      - "--redirect-url=https://$dnsname/"
                     env:
                       - name: OAUTH2_PROXY_COOKIE_SECRET
-                        value: "HDkayAJDblc5FI3vfxDbnari" # Generate a secure cookie secret
+                        value: "HDkayAJDblc5FI3vfxDbnarif" # Generate a secure cookie secret
                     volumeMounts:
                       - name: secret-volume
                         mountPath: /secrets
@@ -142,6 +142,20 @@ jobs:
                       items:
                         - key: client-secret
                           path: client-secret
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: oauth2-proxy
+            namespace: $namespace
+          spec:
+            ports:
+              - port: 80
+                targetPort: 8080
+                name: http
+            selector:
+              app: oauth2-proxy
+
           ---
           apiVersion: networking.k8s.io/v1
           kind: Ingress
