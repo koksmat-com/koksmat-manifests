@@ -162,6 +162,7 @@ jobs:
           kind: Ingress
           metadata:
             name: $namespace
+            namespace: $namespace            
           spec:
             rules:
               - host: $dnsname
