@@ -28,12 +28,14 @@ jobs:
           $app_name | Out-File -FilePath appname.txt
           $dnsname = "$app_name.${{ vars.DOMAIN }}"
           $dnsname | Out-File -FilePath dnsname.txt
-          $namespace = ${{vars.namespace}}
-          $tenant_id = ${{ vars.APP_TENANT }}
-          $client_id = ${{ vars.APP_ID }}
+          $namespace = "${{vars.namespace}}"
           
-
-
+          $tenant_id = "${{ vars.ADMIN_APP_TENANTID }}"
+          $client_id = "${{ vars.ADMIN_APP_APPID }}"
+          $dollarsign = '$'
+          
+          if ($namespace -eq "") {$namespace = "jaeger"}
+          $namespace | Out-File -FilePath namespace.txt
 
           @"
           apiVersion: v1
@@ -49,7 +51,7 @@ jobs:
             namespace: $namespace
           type: Opaque
           data:
-            client-secret: ${{ secrets.APP_SECRET }}
+            client-secret: ${{ secrets.ADMIN_APP_SECRET }}
           ---
           apiVersion: apps/v1
           kind: Deployment
@@ -73,29 +75,33 @@ jobs:
                       - containerPort: 16686  # Jaeger UI port
                       - containerPort: 14268  # Collector port
                       - containerPort: 14250  # gRPC port
+                      - containerPort: 4318   # OTP port
                     env:
                       # Additional Jaeger config can be placed here
                       - name: COLLECTOR_ZIPKIN_HTTP_PORT
                         value: "9411"
-              ---
-              apiVersion: v1
-              kind: Service
-              metadata:
-                name: $app_name
-                namespace: $namespace
-              spec:
-                ports:
-                  - port: 16686
-                    targetPort: 16686
-                    name: ui
-                  - port: 14268
-                    targetPort: 14268
-                    name: collector
-                  - port: 14250
-                    targetPort: 14250
-                    name: grpc
-                selector:
-                  app: $app_name
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: $app_name
+            namespace: $namespace
+          spec:
+            ports:
+              - port: 16686
+                targetPort: 16686
+                name: ui
+              - port: 14268
+                targetPort: 14268
+                name: collector
+              - port: 14250
+                targetPort: 14250
+                name: grpc
+              - port: 4318
+                targetPort: 4318
+                name: otp
+            selector:
+              app: $app_name
           ---
           apiVersion: apps/v1
           kind: Deployment
@@ -117,19 +123,19 @@ jobs:
                     image: quay.io/oauth2-proxy/oauth2-proxy:v7.4.0
                     args:
                       - "--provider=oidc"
-                      - "--oidc-issuer-url=https://login.microsoftonline.com/${{ vars.APP_TENANT }}/v2.0"
-                      - "--client-id=${{ vars.APP_ID }}"
+                      - "--oidc-issuer-url=https://login.microsoftonline.com/$tenant_id/v2.0"
+                      - "--client-id=$client_id"
                       - "--client-secret-file=/secrets/client-secret"
                       - "--email-domain=*"
                       - "--cookie-secure=false"
-                      - "--cookie-secret=$(COOKIE_SECRET)"
-                      - "--upstream=http://${{$env.appname}}.${{$env.namespace}}.svc.cluster.local:16686"
+                      - "--cookie-secret=H3kx8v1UQDjS7F0u4RkHEjMNLqYCtEvX"
+                      - "--upstream=http://$app_name.$namespace.svc.cluster.local:16686"
                       - "--http-address=0.0.0.0:8080"
                       # Optionally, configure redirect URL if different from ingress host
-                      # - "--redirect-url=https://<your-ingress-host>/"
-                    env:
-                      - name: OAUTH2_PROXY_COOKIE_SECRET
-                        value: "HDkayAJDblc5FI3vfxDbnari" # Generate a secure cookie secret
+                      - "--redirect-url=https://$dnsname/"
+                    #env:
+                    #  - name: OAUTH2_PROXY_COOKIE_SECRET
+                    #    value: "H3kx8v1UQDjS7F0u4RkHEjMNLqYCtEvX" # Generate a secure cookie secret
                     volumeMounts:
                       - name: secret-volume
                         mountPath: /secrets
@@ -141,23 +147,38 @@ jobs:
                       items:
                         - key: client-secret
                           path: client-secret
-            ---
-            apiVersion: networking.k8s.io/v1
-            kind: Ingress
-            metadata:
-              name: $namespace
-            spec:
-              rules:
-                - host: $dnsname
-                  http:
-                    paths:
-                      - path: /
-                        pathType: Prefix
-                        backend:
-                          service:
-                            name: $app_name
-                            port:
-                              number: 5301
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: oauth2-proxy
+            namespace: $namespace
+          spec:
+            ports:
+              - port: 80
+                targetPort: 8080
+                name: http
+            selector:
+              app: oauth2-proxy
+
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: $namespace
+            namespace: $namespace            
+          spec:
+            rules:
+              - host: $dnsname
+                http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: $app_name
+                          port:
+                            number: 5301
           "@ | Out-File -FilePath deployment.yml
 
       - name: Log in to Azure CLI
@@ -172,12 +193,13 @@ jobs:
       - name: Deploy to AKS
         run: |
           cat deployment.yml
-          # kubectl apply -f deployment.yml -n ${{ vars.K8_NAMESPACE }}
+          kubectl apply -f deployment.yml 
 
 
       - name: Restart Deployment
         shell: pwsh
         run: |
           $app_name = Get-Content -Path appname.txt
-          # kubectl rollout restart deployment/$app_name -n ${{ vars.K8_NAMESPACE }}
+          $namespace = Get-Content -Path namespace.txt
+          kubectl rollout restart deployment/$app_name -n $namespace
 
