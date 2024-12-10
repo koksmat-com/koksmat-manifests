@@ -31,6 +31,7 @@ jobs:
           $namespace = ${{vars.namespace}}
           $tenant_id = "${{ vars.ADMIN_APP_TENANTID }}"
           $client_id = "${{ vars.ADMIN_APP_APPID }}"
+          $dollarsign = '$'
           
 
 
@@ -122,7 +123,7 @@ jobs:
                       - "--client-secret-file=/secrets/client-secret"
                       - "--email-domain=*"
                       - "--cookie-secure=false"
-                      - "--cookie-secret=$(COOKIE_SECRET)"
+                      - "--cookie-secret=${$dollarsign}(COOKIE_SECRET)"
                       - "--upstream=http://$app_name.$namespace.svc.cluster.local:16686"
                       - "--http-address=0.0.0.0:8080"
                       # Optionally, configure redirect URL if different from ingress host
