@@ -194,5 +194,5 @@ jobs:
         shell: pwsh
         run: |
           $app_name = Get-Content -Path appname.txt
-          kubectl rollout restart deployment/$app_name 
+          kubectl rollout restart deployment/$app_name -n $namespace
 
