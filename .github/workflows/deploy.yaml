@@ -29,8 +29,8 @@ jobs:
           $dnsname = "$app_name.${{ vars.DOMAIN }}"
           $dnsname | Out-File -FilePath dnsname.txt
           $namespace = ${{vars.namespace}}
-          $tenant_id = ${{ vars.APP_TENANT }}
-          $client_id = ${{ vars.APP_ID }}
+          $tenant_id = ${{ vars.ADMIN_APP_TENANTID }}
+          $client_id = ${{ vars.ADMIN_APP_APPID }}
           
 
 
@@ -49,7 +49,7 @@ jobs:
             namespace: $namespace
           type: Opaque
           data:
-            client-secret: ${{ secrets.APP_SECRET }}
+            client-secret: ${{ secrets.ADMIN_APP_SECRET }}
           ---
           apiVersion: apps/v1
           kind: Deployment
@@ -117,13 +117,13 @@ jobs:
                     image: quay.io/oauth2-proxy/oauth2-proxy:v7.4.0
                     args:
                       - "--provider=oidc"
-                      - "--oidc-issuer-url=https://login.microsoftonline.com/${{ vars.APP_TENANT }}/v2.0"
+                      - "--oidc-issuer-url=https://login.microsoftonline.com/$tenant_id/v2.0"
                       - "--client-id=${{ vars.APP_ID }}"
                       - "--client-secret-file=/secrets/client-secret"
                       - "--email-domain=*"
                       - "--cookie-secure=false"
                       - "--cookie-secret=$(COOKIE_SECRET)"
-                      - "--upstream=http://${{$env.appname}}.${{$env.namespace}}.svc.cluster.local:16686"
+                      - "--upstream=http://$app_name.$namespace.svc.cluster.local:16686"
                       - "--http-address=0.0.0.0:8080"
                       # Optionally, configure redirect URL if different from ingress host
                       # - "--redirect-url=https://<your-ingress-host>/"
@@ -172,12 +172,12 @@ jobs:
       - name: Deploy to AKS
         run: |
           cat deployment.yml
-          # kubectl apply -f deployment.yml -n ${{ vars.K8_NAMESPACE }}
+          # kubectl apply -f deployment.yml 
 
 
       - name: Restart Deployment
         shell: pwsh
         run: |
           $app_name = Get-Content -Path appname.txt
-          # kubectl rollout restart deployment/$app_name -n ${{ vars.K8_NAMESPACE }}
+          # kubectl rollout restart deployment/$app_name 
 
