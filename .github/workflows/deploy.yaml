@@ -33,7 +33,7 @@ jobs:
           $client_id = "${{ vars.ADMIN_APP_APPID }}"
           $dollarsign = '$'
           
-          if ($namespace -eq "") $namespace = "jaeger"
+          if ($namespace -eq "") {$namespace = "jaeger"}
 
 
           @"
