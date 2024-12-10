@@ -1,0 +1,183 @@
+# v1.0
+
+name: Deploy Jaeger to AKS
+
+on:
+  workflow_dispatch:
+
+env:
+  namespace: jaeger
+  appname: ${{ github.repository }}-${{ github.ref_name }}".Replace("/", "-")
+  
+jobs:
+
+
+  deploy:
+    
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Generate Kubernetes manifest
+        shell: pwsh
+        run: |
+          $app_name = "${{ github.repository }}-${{ github.ref_name }}".Replace("/", "-")
+          $app_name | Out-File -FilePath appname.txt
+          $dnsname = "$app_name.${{ vars.DOMAIN }}"
+          $dnsname | Out-File -FilePath dnsname.txt
+          $namespace = ${{vars.namespace}}
+          $tenant_id = ${{ vars.APP_TENANT }}
+          $client_id = ${{ vars.APP_ID }}
+          
+
+
+
+          @"
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: $namespace
+
+          ---
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: oauth2-proxy-secret
+            namespace: $namespace
+          type: Opaque
+          data:
+            client-secret: ${{ secrets.APP_SECRET }}
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: $app_name
+            namespace: $namespace
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: $app_name
+            template:
+              metadata:
+                labels:
+                  app: $app_name
+              spec:
+                containers:
+                  - name: $app_name
+                    image: jaegertracing/all-in-one:latest
+                    ports:
+                      - containerPort: 16686  # Jaeger UI port
+                      - containerPort: 14268  # Collector port
+                      - containerPort: 14250  # gRPC port
+                    env:
+                      # Additional Jaeger config can be placed here
+                      - name: COLLECTOR_ZIPKIN_HTTP_PORT
+                        value: "9411"
+              ---
+              apiVersion: v1
+              kind: Service
+              metadata:
+                name: $app_name
+                namespace: $namespace
+              spec:
+                ports:
+                  - port: 16686
+                    targetPort: 16686
+                    name: ui
+                  - port: 14268
+                    targetPort: 14268
+                    name: collector
+                  - port: 14250
+                    targetPort: 14250
+                    name: grpc
+                selector:
+                  app: $app_name
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: oauth2-proxy
+            namespace:  $namespace
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: oauth2-proxy
+            template:
+              metadata:
+                labels:
+                  app: oauth2-proxy
+              spec:
+                containers:
+                  - name: oauth2-proxy
+                    image: quay.io/oauth2-proxy/oauth2-proxy:v7.4.0
+                    args:
+                      - "--provider=oidc"
+                      - "--oidc-issuer-url=https://login.microsoftonline.com/${{ vars.APP_TENANT }}/v2.0"
+                      - "--client-id=${{ vars.APP_ID }}"
+                      - "--client-secret-file=/secrets/client-secret"
+                      - "--email-domain=*"
+                      - "--cookie-secure=false"
+                      - "--cookie-secret=$(COOKIE_SECRET)"
+                      - "--upstream=http://${{$env.appname}}.${{$env.namespace}}.svc.cluster.local:16686"
+                      - "--http-address=0.0.0.0:8080"
+                      # Optionally, configure redirect URL if different from ingress host
+                      # - "--redirect-url=https://<your-ingress-host>/"
+                    env:
+                      - name: OAUTH2_PROXY_COOKIE_SECRET
+                        value: "HDkayAJDblc5FI3vfxDbnari" # Generate a secure cookie secret
+                    volumeMounts:
+                      - name: secret-volume
+                        mountPath: /secrets
+                        readOnly: true
+                volumes:
+                  - name: secret-volume
+                    secret:
+                      secretName: oauth2-proxy-secret
+                      items:
+                        - key: client-secret
+                          path: client-secret
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: $namespace
+            spec:
+              rules:
+                - host: $dnsname
+                  http:
+                    paths:
+                      - path: /
+                        pathType: Prefix
+                        backend:
+                          service:
+                            name: $app_name
+                            port:
+                              number: 5301
+          "@ | Out-File -FilePath deployment.yml
+
+      - name: Log in to Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        run: |
+          az aks get-credentials --resource-group ${{ vars.AZURE_RG }} --name ${{ vars.AZURE_AKS }}
+
+      - name: Deploy to AKS
+        run: |
+          cat deployment.yml
+          # kubectl apply -f deployment.yml -n ${{ vars.K8_NAMESPACE }}
+
+
+      - name: Restart Deployment
+        shell: pwsh
+        run: |
+          $app_name = Get-Content -Path appname.txt
+          # kubectl rollout restart deployment/$app_name -n ${{ vars.K8_NAMESPACE }}
+
