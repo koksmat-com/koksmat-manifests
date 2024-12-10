@@ -29,12 +29,13 @@ jobs:
           $dnsname = "$app_name.${{ vars.DOMAIN }}"
           $dnsname | Out-File -FilePath dnsname.txt
           $namespace = "${{vars.namespace}}"
+          
           $tenant_id = "${{ vars.ADMIN_APP_TENANTID }}"
           $client_id = "${{ vars.ADMIN_APP_APPID }}"
           $dollarsign = '$'
           
           if ($namespace -eq "") {$namespace = "jaeger"}
-
+          $namespace | Out-File -FilePath namespace.txt
 
           @"
           apiVersion: v1
@@ -194,5 +195,6 @@ jobs:
         shell: pwsh
         run: |
           $app_name = Get-Content -Path appname.txt
+          $namespace = Get-Content -Path namespace.txt
           kubectl rollout restart deployment/$app_name -n $namespace
 
