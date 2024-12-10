@@ -29,8 +29,8 @@ jobs:
           $dnsname = "$app_name.${{ vars.DOMAIN }}"
           $dnsname | Out-File -FilePath dnsname.txt
           $namespace = ${{vars.namespace}}
-          $tenant_id = ${{ vars.ADMIN_APP_TENANTID }}
-          $client_id = ${{ vars.ADMIN_APP_APPID }}
+          $tenant_id = "${{ vars.ADMIN_APP_TENANTID }}"
+          $client_id = "${{ vars.ADMIN_APP_APPID }}"
           
 
 
