@@ -124,14 +124,14 @@ jobs:
                       - "--client-secret-file=/secrets/client-secret"
                       - "--email-domain=*"
                       - "--cookie-secure=false"
-                      - "--cookie-secret=${$dollarsign}(COOKIE_SECRET)"
+                      - "--cookie-secret=H3kx8v1UQDjS7F0u4RkHEjMNLqYCtEvX"
                       - "--upstream=http://$app_name.$namespace.svc.cluster.local:16686"
                       - "--http-address=0.0.0.0:8080"
                       # Optionally, configure redirect URL if different from ingress host
                       - "--redirect-url=https://$dnsname/"
-                    env:
-                      - name: OAUTH2_PROXY_COOKIE_SECRET
-                        value: "HDkayAJDblc5FI3vfxDbnarif" # Generate a secure cookie secret
+                    #env:
+                    #  - name: OAUTH2_PROXY_COOKIE_SECRET
+                    #    value: "H3kx8v1UQDjS7F0u4RkHEjMNLqYCtEvX" # Generate a secure cookie secret
                     volumeMounts:
                       - name: secret-volume
                         mountPath: /secrets
